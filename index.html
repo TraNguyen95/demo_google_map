@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<!--
+ @license
+ Copyright 2019 Google LLC. All Rights Reserved.
+ SPDX-License-Identifier: Apache-2.0
+-->
+<html>
+  <head>
+    <title>Marker Animations With setTimeout()</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=default"></script>
+
+    <link rel="stylesheet" type="text/css" href="./style.css" />
+  </head>
+  <body>
+    <input type="text" id="searchInput" placeholder="Search..." />
+    <button id="searchBtn">Search</button>
+    <div id="map"></div>
+
+    <script
+      src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA3uOV3hJu2Hb7t_Exz4QW6aoi_KkP4p0s&libraries=places&language=EN&region=EN&callback=initMap"
+      async
+      defer
+    ></script>
+    <script async defer>
+      const searchInput = document.getElementById("searchInput");
+      const searchBtn = document.getElementById("searchBtn");
+      const mapElement = document.getElementById("map");
+      let markers = [];
+      let currentInfoWindow = null;
+
+      function initMap() {
+        return new google.maps.Map(mapElement, {
+          zoom: 4,
+          center: { lat: 1, lng: 1.01 },
+          disableDefaultUI: true,
+          styles: [
+            {
+              featureType: "poi",
+              stylers: [{ visibility: "off" }],
+            },
+            {
+              featureType: "administrative",
+              elementType: "labels.text.fill",
+              stylers: [{ visibility: "off" }],
+            },
+            {
+              featureType: "administrative.province",
+              elementType: "labels.text.fill",
+              stylers: [{ visibility: "off" }],
+            },
+            {
+              featureType: "administrative.locality",
+              elementType: "labels.text.fill",
+              stylers: [{ visibility: "off" }],
+            },
+          ],
+        });
+      }
+
+      async function fetchTrainers() {
+        const response = await fetch(
+          "http://localhost:1337/api/trainees?populate=*"
+        );
+        const json = await response.json();
+        return json.data.map((trainer) => ({
+          name: trainer.attributes.name,
+          lat: trainer.attributes.users_permissions_user.data.attributes.lat,
+          lng: trainer.attributes.users_permissions_user.data.attributes.lon,
+        }));
+      }
+
+      function addMarker(map, position, timeout) {
+        const marker = new google.maps.Marker({
+          position,
+          map,
+        });
+
+        marker.addListener("click", function () {
+          const contentString = '<div id="content">' + position.name + "</div>";
+
+          if (currentInfoWindow) {
+            currentInfoWindow.close();
+          }
+
+          const infowindow = new google.maps.InfoWindow({
+            content: contentString,
+          });
+
+          infowindow.open(map, marker);
+          currentInfoWindow = infowindow;
+        });
+
+        markers.push(marker);
+      }
+
+      function clearMarkers() {
+        markers.forEach((marker) => marker.setMap(null));
+        markers = [];
+      }
+
+      function newLocation(map, lat, lng) {
+        map.setCenter({ lat, lng });
+      }
+
+      function searchTrainers(trainers, searchValue) {
+        return trainers.filter((trainer) =>
+          trainer.name.toLowerCase().includes(searchValue.toLowerCase())
+        );
+      }
+
+      async function renderTrainers() {
+        const trainers = await fetchTrainers();
+        const map = initMap();
+
+        trainers.forEach((trainer, index) =>
+          setTimeout(() => addMarker(map, trainer, index * 200), index * 200)
+        );
+
+        newLocation(map, trainers[0].lat, trainers[0].lng);
+
+        searchBtn.addEventListener("click", function () {
+          const searchValue = searchInput.value;
+          const searchResults = searchTrainers(trainers, searchValue);
+          clearMarkers();
+          searchResults.forEach((result, index) =>
+            setTimeout(() => addMarker(map, result, index * 200), index * 200)
+          );
+          newLocation(map, searchResults[0].lat, searchResults[0].lng);
+        });
+      }
+
+      renderTrainers();
+    </script>
+  </body>
+</html>
